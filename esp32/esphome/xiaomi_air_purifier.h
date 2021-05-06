@@ -21,45 +21,6 @@ enum LedBrightnessValue {
     Off = 2
 };
 
-enum SiidType {
-    AIR_PURIFIER = 2,
-    ENVIRONMENT = 3,
-    FILTER = 4,
-    ALARM = 5,
-    INDICATOR_LIGHT = 6,
-    PHYSICAL_CONTROL_LOCKED = 7,
-    MOTOR_SPEED = 10,
-    USE_TIME = 12,
-    AQI = 13,
-    RFID = 14,
-    OTHER = 15
-};
-
-enum MiiotProperty {
-  Power,
-  FanLevel,
-  Mode,
-  Humidity,
-  Temperature,
-  Aqi,
-  FilterLifeRemaining,
-  FilterHoursUsed,
-  Buzzer,
-  BuzzerVolume,
-  LedBrightness,
-  Led,
-  ChildLock,
-  FavoriteLevel,
-  FavoriteRpm,
-  MotorSpeed,
-  UseTime,
-  PurifyVolume,
-  AverageAQI,
-  FilterRFIDTag,
-  FilterRFIDProductId,
-  AppExtra
-};
-
 enum MiiotCommand {
   INVALID,
   ERROR,
@@ -89,10 +50,10 @@ struct State {
     float aqi;
     int filter_life_remaining;
     int filter_hours_used;
-    int buzzer;
+    bool buzzer;
     int buzzer_volume;
     LedBrightnessValue led_brightness;
-    int led;
+    bool led;
     bool child_lock;
     int favorite_level;
     int favorite_rpm;
@@ -103,6 +64,46 @@ struct State {
     std::string filter_rfid_tag;
     std::string filter_rfid_product_id;
     std::string app_extra;
+};
+
+enum MiiotProperty {
+  Invalid,
+  Power,
+  FanLevel,
+  Mode,
+  Humidity,
+  Temperature,
+  Aqi,
+  FilterLifeRemaining,
+  FilterHoursUsed,
+  Buzzer,
+  BuzzerVolume,
+  LedBrightness,
+  Led,
+  ChildLock,
+  FavoriteLevel,
+  FavoriteRpm,
+  MotorSpeed,
+  UseTime,
+  PurifyVolume,
+  AverageAQI,
+  FilterRFIDTag,
+  FilterRFIDProductId,
+  AppExtra
+};
+
+enum SiidType {
+    AIR_PURIFIER = 2,
+    ENVIRONMENT = 3,
+    FILTER = 4,
+    ALARM = 5,
+    INDICATOR_LIGHT = 6,
+    PHYSICAL_CONTROL_LOCKED = 7,
+    MOTOR_SPEED = 10,
+    USE_TIME = 12,
+    AQI = 13,
+    RFID = 14,
+    OTHER = 15
 };
 
 struct MiiotPropertyValue {
@@ -117,9 +118,9 @@ std::map<MiiotProperty, MiiotPropertyValue> MAPPING {
   {MiiotProperty::Power, {SiidType::AIR_PURIFIER, 2}},
   {MiiotProperty::FanLevel, {SiidType::AIR_PURIFIER, 4}},
   {MiiotProperty::Mode, {SiidType::AIR_PURIFIER, 5}},
+  {MiiotProperty::Aqi, {SiidType::ENVIRONMENT, 6}},
   {MiiotProperty::Humidity, {SiidType::ENVIRONMENT, 7}},
   {MiiotProperty::Temperature, {SiidType::ENVIRONMENT, 8}},
-  {MiiotProperty::Aqi, {SiidType::ENVIRONMENT, 6}},
   {MiiotProperty::FilterLifeRemaining, {SiidType::FILTER, 3}},
   {MiiotProperty::FilterHoursUsed, {SiidType::FILTER, 5}},
   {MiiotProperty::Buzzer, {SiidType::ALARM, 1}},
@@ -138,16 +139,12 @@ std::map<MiiotProperty, MiiotPropertyValue> MAPPING {
   {MiiotProperty::AppExtra, {SiidType::OTHER, 1}},
 };
 
-class XiaomiAirPurifier : public MiiotUart, public Switch  {
+class XiaomiAirPurifier : public MiiotUart  {
  public:
   XiaomiAirPurifier(UARTComponent *parent) : MiiotUart(parent) {
     // Init rev mapping
     for(const auto &x: MAPPING)
       REV_MAPPING[x.second.siid][x.second.piid] = x.first;
-    
-    // Request all properties
-    for(const auto &x: MAPPING)
-      this->get_properties(x.second);
   }
 
   TextSensor *model_name = new TextSensor();
@@ -159,6 +156,8 @@ class XiaomiAirPurifier : public MiiotUart, public Switch  {
 
   BinarySensor *power_sensor = new BinarySensor();
   BinarySensor *child_lock_sensor = new BinarySensor();
+  BinarySensor *buzzer_sensor = new BinarySensor();
+  BinarySensor *led_sensor = new BinarySensor();
 
   Sensor *fanlevel_sensor = new Sensor();
   Sensor *mode_sensor = new Sensor();
@@ -169,9 +168,7 @@ class XiaomiAirPurifier : public MiiotUart, public Switch  {
 
   Sensor *filterlife_remaining_sensor = new Sensor();
   Sensor *filterhours_used_sensor = new Sensor();
-  Sensor *buzzer_sensor = new Sensor();
   Sensor *buzzer_volume_sensor = new Sensor();
-  Sensor *led_sensor = new Sensor();
   Sensor *led_brightness_sensor = new Sensor();
   
   Sensor *favorite_level_sensor = new Sensor();
@@ -198,8 +195,9 @@ class XiaomiAirPurifier : public MiiotUart, public Switch  {
       enqueue_message(os.str());
   }
 
-  void write_state(bool state) override {
-    this->requested_power_state_ = state;
+  void get_all_properties() {
+    for(const auto &x: MAPPING)
+      this->get_properties(x.second);
   }
 
   void set_power(bool enable) {
@@ -212,6 +210,18 @@ class XiaomiAirPurifier : public MiiotUart, public Switch  {
 
   void set_operation_mode(OperationMode mode) {
     set_properties(MAPPING[MiiotProperty::Mode], to_string(static_cast<int>(mode)));
+  }
+
+  void set_led_brightness(LedBrightnessValue value) {
+    set_properties(MAPPING[MiiotProperty::LedBrightness], to_string(static_cast<int>(value)));
+  }
+
+  void set_buzzer(bool enable) {
+    set_properties(MAPPING[MiiotProperty::Buzzer], enable ? "true" : "false");
+  }
+
+  void set_child_lock(bool enable) {
+    set_properties(MAPPING[MiiotProperty::ChildLock], enable ? "true" : "false");
   }
 
   std::string get_network_status() {
@@ -233,32 +243,28 @@ class XiaomiAirPurifier : public MiiotUart, public Switch  {
         return out.str();
   }
 
-  void handle_changed_properties(std::vector<std::string> args, bool is_result) {
-      ESP_LOGD(TAG, "Properties changed: SIID: %s PIID: %s", args[0].c_str(), args[1].c_str());
+  bool str_to_bool(std::string value) {
+    if (value == "true") return true;
+    else if (value == "false") return false;
 
-      std::string value = "";
-      auto siid_int = atoi(args[0].c_str());
-      auto piid = atoi(args[1].c_str());
+    ESP_LOGE(TAG, "Failed converting %s to bool", value.c_str());
+    return false;
+  }
 
-      // Results args got integer status after siid/piid
-      if (is_result) {
-        int result_status = atoi(args[2].c_str());
-        if (result_status != 0) {
-          ESP_LOGE(TAG, "Result received with error code: %i (SIID: %i, PIID: %i)", result_status, siid_int, piid);
-          return;
-        }
+  std::string args_to_str(std::vector<std::string> args) {
+        std::ostringstream out;
+        for (int i=0; i < args.size(); i++)
+          out << args[i] << " ";
+        return out.str();
+  }
 
-        value = args[3];
-      } else {
-        value = args[2];
-      } 
-      
+  void handle_value_change(int siid_int, int piid, std::string value) {      
       auto siid = static_cast<SiidType>(siid_int);
       auto property_enum = get_property_value_for_siid_piid(siid, piid);
 
       switch(property_enum) {
         case MiiotProperty::Power:
-          this->state_.power = static_cast<bool>(atoi(value.c_str()));
+          this->state_.power = str_to_bool(value);
           this->power_sensor->publish_state(this->state_.power);
           break;
         case MiiotProperty::FanLevel:
@@ -290,7 +296,7 @@ class XiaomiAirPurifier : public MiiotUart, public Switch  {
           this->filterhours_used_sensor->publish_state(this->state_.filter_hours_used);
           break;
         case MiiotProperty::Buzzer:
-          this->state_.buzzer = static_cast<int>(atoi(value.c_str()));
+          this->state_.buzzer = str_to_bool(value);
           this->buzzer_sensor->publish_state(this->state_.buzzer);
           break;
         case MiiotProperty::BuzzerVolume:
@@ -302,11 +308,11 @@ class XiaomiAirPurifier : public MiiotUart, public Switch  {
           this->led_brightness_sensor->publish_state(this->state_.led_brightness);
           break;
         case MiiotProperty::Led:
-          this->state_.led = static_cast<int>(atoi(value.c_str()));
+          this->state_.led = str_to_bool(value);
           this->led_sensor->publish_state(this->state_.led);
           break;
         case MiiotProperty::ChildLock:
-          this->state_.child_lock = static_cast<bool>(atoi(value.c_str()));
+          this->state_.child_lock = str_to_bool(value);
           this->child_lock_sensor->publish_state(this->state_.child_lock);
           break;
         case MiiotProperty::FavoriteLevel:
@@ -346,8 +352,33 @@ class XiaomiAirPurifier : public MiiotUart, public Switch  {
           this->app_extra_sensor->publish_state(this->state_.app_extra);
           break;
         default:
-          ESP_LOGD(TAG, "Invalid SIID: %i", siid);
+          ESP_LOGD(TAG, "Unhandled property change SIID: %i, PIID: %i, Value=%s", siid, piid, value.c_str());
       }
+  }
+
+  void handle_result(std::vector<std::string> args) {
+    if (args.size() != 4) {
+      return;
+    }
+    
+    auto siid_int = atoi(args[0].c_str());
+    auto piid = atoi(args[1].c_str());
+    auto ret_code = atoi(args[2].c_str());
+    std::string value = args[3];
+
+    ESP_LOGD(TAG, "Result: SIID: %i PIID: %i RET: %i VALUE: %s", siid_int, piid, ret_code, value.c_str());
+
+    handle_value_change(siid_int, piid, value);
+  }
+
+  void handle_changed_properties(std::vector<std::string> args) {
+    ESP_LOGD(TAG, "Properties changed: SIID: %s PIID: %s", args[0].c_str(), args[1].c_str());
+
+    auto siid_int = atoi(args[0].c_str());
+    auto piid = atoi(args[1].c_str());
+    std::string value = args[2];
+
+    handle_value_change(siid_int, piid, value);
   }
 
   std::string get_down_update() {
@@ -356,9 +387,10 @@ class XiaomiAirPurifier : public MiiotUart, public Switch  {
         std::ostringstream out;
         out << "down MIIO_net_change " << nw_status;
         return out.str();
-    } else if (this->requested_power_state_ != this->state_.power) {
-        set_power(this->requested_power_state_);
-        this->state_.power = this->requested_power_state_;
+    } else if (!this->initial_stats_requested_) {
+      ESP_LOGD(TAG, "Requesting initial stats");
+      get_all_properties();
+      this->initial_stats_requested_ = true;
     } else if (!this->down_queue_.empty()) {
         auto data = this->down_queue_[0];
         this->down_queue_.erase(this->down_queue_.begin());
@@ -382,13 +414,6 @@ class XiaomiAirPurifier : public MiiotUart, public Switch  {
     return MiiotCommand::INVALID;
   }
 
-  std::string args_to_str(std::vector<std::string> args) {
-        std::ostringstream out;
-        for (int i=0; i < args.size(); i++)
-          out << args[i] << " ";
-        return out.str();
-  }
-
   std::string handle_miiot(std::string command, std::vector<std::string> args) override {
     ESP_LOGV(TAG, "handle_miiot: command=%s, args_count=%i", command.c_str(), args.size());
     auto command_enum = string_to_command(command);
@@ -397,7 +422,7 @@ class XiaomiAirPurifier : public MiiotUart, public Switch  {
         case MiiotCommand::GET_DOWN:
             return get_down_update();
         case MiiotCommand::PROPERTIES_CHANGED:
-            handle_changed_properties(args, false);
+            handle_changed_properties(args);
             return "ok";
         case MiiotCommand::MODEL:
             ESP_LOGD(TAG, "Got model: %s", args_to_str(args).c_str());
@@ -422,7 +447,7 @@ class XiaomiAirPurifier : public MiiotUart, public Switch  {
             return network_status_to_string(get_current_nw_status());
         case MiiotCommand::RESULT:
             ESP_LOGD(TAG, "Received Result: %s", args_to_str(args).c_str());
-            handle_changed_properties(args, true);
+            handle_result(args);
             break;
         case MiiotCommand::ERROR:
             ESP_LOGD(TAG, "Received Error: %s", args_to_str(args).c_str());
@@ -438,7 +463,7 @@ class XiaomiAirPurifier : public MiiotUart, public Switch  {
     const char* TAG = "xiaomi_air_purifier";
     State state_{};
     std::vector<std::string> down_queue_{};
-    bool requested_power_state_{false};
+    bool initial_stats_requested_{false};
 
   void enqueue_message(std::string message) {
       this->down_queue_.push_back(message);

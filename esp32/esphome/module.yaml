@@ -85,9 +85,7 @@ sensor:
       cc->humidity_sensor,
       cc->filterlife_remaining_sensor,
       cc->filterhours_used_sensor,
-      cc->buzzer_sensor,
       cc->buzzer_volume_sensor,
-      cc->led_sensor,
       cc->led_brightness_sensor,
       cc->favorite_level_sensor,
       cc->favorite_rpm_sensor,
@@ -105,9 +103,7 @@ sensor:
   - name: Humidity
   - name: Filter-life remaining
   - name: Filter hours used
-  - name: Buzzer
   - name: Buzzer volume
-  - name: LED
   - name: LED brightness
   - name: Favorite level
   - name: Favorite RPM
@@ -122,17 +118,12 @@ binary_sensor:
     auto cc = static_cast<XiaomiAirPurifier*>(id(ap_custom));
     return {
       cc->power_sensor,
-      cc->child_lock_sensor
+      cc->child_lock_sensor,
+      cc->buzzer_sensor,
+      cc->led_sensor
     };
   binary_sensors:
   - name: Power state
   - name: Child Lock
-
-switch:
-- platform: custom
-  lambda: |-
-    auto cc = static_cast<XiaomiAirPurifier*>(id(ap_custom));
-    return {cc};
-
-  switches:
-  - name: Power
+  - name: Buzzer
+  - name: LED
