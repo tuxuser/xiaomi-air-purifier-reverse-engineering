@@ -127,3 +127,18 @@ binary_sensor:
   - name: Child Lock
   - name: Buzzer
   - name: LED
+
+switch:
+- platform: template
+  name: "Power switch"
+  lambda: |-
+    auto cc = static_cast<XiaomiAirPurifier*>(id(ap_custom));
+    return cc->power_sensor->state;
+  turn_on_action:
+    - lambda: |-
+        auto cc = static_cast<XiaomiAirPurifier*>(id(ap_custom));
+        cc->set_power(true);
+  turn_off_action:
+    - lambda: |-
+        auto cc = static_cast<XiaomiAirPurifier*>(id(ap_custom));
+        cc->set_power(false);
