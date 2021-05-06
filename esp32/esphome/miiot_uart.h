@@ -33,7 +33,7 @@ public:
     }
 
     void loop() override {
-        char ch = read();
+        auto ch = read();
         if (ch == '\r') {
             // Append null terminator
             this->recv_buf_.push_back('\0');
@@ -65,12 +65,10 @@ public:
 
     void send(std::string reply) {
         ESP_LOGV("miiot_uart", "send: data=[%s] len=%i", reply.c_str(), reply.length());
-        for(int i=0; i < reply.length(); i++)
-        {
-            write(reply[i]);
+        if (reply.back() != '\r') {
+            reply += '\r';
         }
-        write('\r');
-        write('\n');
+        write_str(reply.c_str());
     }
 
 protected:

@@ -58,27 +58,75 @@ text_sensor:
     auto cc = static_cast<XiaomiAirPurifier*>(id(ap_custom));
     return {
       cc->model_name,
-      cc->mcu_firmware
+      cc->mcu_firmware,
+      cc->ble_config,
+      cc->filter_rfid_tag_sensor,
+      cc->filter_rfid_product_id_sensor,
+      cc->app_extra_sensor
     };
 
   text_sensors:
-  - name: model
-  - name: mcu
+  - name: Model
+  - name: MCU Firmware
+  - name: BLE Config
+  - name: Filter RFID Tag
+  - name: Filter RFID Product Id
+  - name: App Extra
 
 sensor:
 - platform: custom
   lambda: |-
     auto cc = static_cast<XiaomiAirPurifier*>(id(ap_custom));
     return {
+      cc->fanlevel_sensor,
+      cc->mode_sensor,
       cc->aqi_sensor,
       cc->temperature_sensor,
-      cc->humidity_sensor
+      cc->humidity_sensor,
+      cc->filterlife_remaining_sensor,
+      cc->filterhours_used_sensor,
+      cc->buzzer_sensor,
+      cc->buzzer_volume_sensor,
+      cc->led_sensor,
+      cc->led_brightness_sensor,
+      cc->favorite_level_sensor,
+      cc->favorite_rpm_sensor,
+      cc->motor_speed_sensor,
+      cc->use_time_sensor,
+      cc->purify_volume_sensor,
+      cc->average_aqi_sensor
     };
   
   sensors:
+  - name: Fan level
+  - name: Mode
   - name: AQI
   - name: Temperature
   - name: Humidity
+  - name: Filter-life remaining
+  - name: Filter hours used
+  - name: Buzzer
+  - name: Buzzer volume
+  - name: LED
+  - name: LED brightness
+  - name: Favorite level
+  - name: Favorite RPM
+  - name: Motor speed
+  - name: Usetime
+  - name: Purify volume
+  - name: AQI (avg.)
+
+binary_sensor:
+- platform: custom
+  lambda: |-
+    auto cc = static_cast<XiaomiAirPurifier*>(id(ap_custom));
+    return {
+      cc->power_sensor,
+      cc->child_lock_sensor
+    };
+  binary_sensors:
+  - name: Power state
+  - name: Child Lock
 
 switch:
 - platform: custom
