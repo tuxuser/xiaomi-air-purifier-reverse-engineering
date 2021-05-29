@@ -34,38 +34,6 @@ enum MiiotCommand {
   NET
 };
 
-struct State {
-    State() = default;
-
-    std::string model;
-    std::string mcu_version;
-    std::string ble;
-
-    NetworkStatus net_status;
-    bool power;
-    int fanlevel;
-    OperationMode mode;
-    float humidity;
-    float temperature;
-    float aqi;
-    int filter_life_remaining;
-    int filter_hours_used;
-    bool buzzer;
-    int buzzer_volume;
-    LedBrightnessValue led_brightness;
-    bool led;
-    bool child_lock;
-    int favorite_level;
-    int favorite_rpm;
-    int motor_speed;
-    int use_time;
-    int purify_volume;
-    int average_aqi;
-    std::string filter_rfid_tag;
-    std::string filter_rfid_product_id;
-    std::string app_extra;
-};
-
 enum MiiotProperty {
   Invalid,
   Power,
@@ -153,6 +121,7 @@ class XiaomiAirPurifier : public MiiotUart  {
   TextSensor *filter_rfid_tag_sensor = new TextSensor();
   TextSensor *filter_rfid_product_id_sensor = new TextSensor();
   TextSensor *app_extra_sensor = new TextSensor();
+  TextSensor *network_status = new TextSensor();
 
   BinarySensor *power_sensor = new BinarySensor();
   BinarySensor *child_lock_sensor = new BinarySensor();
@@ -201,11 +170,27 @@ class XiaomiAirPurifier : public MiiotUart  {
   }
 
   void set_power(bool enable) {
-      set_properties(MAPPING[MiiotProperty::Power], enable ? "true" : "false");
+      set_properties(MAPPING[MiiotProperty::Power], enable ? "1" : "0");
+      this->power_sensor->publish_state(enable);
   }
 
-  void set_fan_level(int level) {
-    set_properties(MAPPING[MiiotProperty::FanLevel], to_string(level));
+  void set_fan_level(float level) {
+    int fanlevel_int = 0;
+
+    if (level == 0.00)
+      fanlevel_int = 0;
+    else if (level == 0.33)
+      fanlevel_int = 1;
+    else if (level == 0.66)
+      fanlevel_int = 2;
+    else if (level == 1.00)
+      fanlevel_int = 3;
+    else {
+      ESP_LOGD(TAG, "set_fan_level: Invalid level %f", level);
+      return;
+    }
+    set_properties(MAPPING[MiiotProperty::FanLevel], to_string(fanlevel_int));
+    this->fanlevel_sensor->publish_state(level);
   }
 
   void set_operation_mode(OperationMode mode) {
@@ -213,7 +198,9 @@ class XiaomiAirPurifier : public MiiotUart  {
   }
 
   void set_led_brightness(LedBrightnessValue value) {
-    set_properties(MAPPING[MiiotProperty::LedBrightness], to_string(static_cast<int>(value)));
+    auto value_int = static_cast<int>(value);
+    set_properties(MAPPING[MiiotProperty::LedBrightness], to_string(value_int));
+    this->led_brightness_sensor->publish_state(value_int);
   }
 
   void set_buzzer(bool enable) {
@@ -226,14 +213,15 @@ class XiaomiAirPurifier : public MiiotUart  {
 
   std::string get_network_status() {
       auto current_status = get_current_nw_status();
-      if (current_status == this->state_.net_status)
+      auto nw_status_string = network_status_to_string(current_status);
+      if (nw_status_string == this->network_status->state)
       {
           return "";
       }
 
-      ESP_LOGD(TAG, "Updating network status: Old=%i, New=%i", this->state_.net_status, current_status);
-      this->state_.net_status = current_status;
-      return network_status_to_string(this->state_.net_status);
+      ESP_LOGD(TAG, "Updating network status: Old=%s, New=%s", this->network_status->state.c_str(), nw_status_string.c_str());
+      this->network_status->publish_state(nw_status_string);
+      return this->network_status->state;
   }
 
   std::string get_time() {
@@ -264,92 +252,70 @@ class XiaomiAirPurifier : public MiiotUart  {
 
       switch(property_enum) {
         case MiiotProperty::Power:
-          this->state_.power = str_to_bool(value);
-          this->power_sensor->publish_state(this->state_.power);
+          this->power_sensor->publish_state(str_to_bool(value));
           break;
         case MiiotProperty::FanLevel:
-          this->state_.fanlevel = static_cast<int>(atoi(value.c_str()));
-          this->fanlevel_sensor->publish_state(this->state_.fanlevel);
+          this->fanlevel_sensor->publish_state(atoi(value.c_str()));
           break;
         case MiiotProperty::Mode:
-          this->state_.mode = static_cast<OperationMode>(atoi(value.c_str()));
-          this->mode_sensor->publish_state(atoi(value.c_str()));
+          this->mode_sensor->publish_state(static_cast<OperationMode>(atoi(value.c_str())));
           break;
         case MiiotProperty::Aqi:
-          this->state_.aqi = static_cast<float>(atoi(value.c_str()));
-          this->aqi_sensor->publish_state(this->state_.aqi);
+          this->aqi_sensor->publish_state(static_cast<float>(atoi(value.c_str())));
           break;
         case MiiotProperty::Humidity:
-          this->state_.humidity = static_cast<float>(atoi(value.c_str()));
-          this->humidity_sensor->publish_state(this->state_.humidity);
+          this->humidity_sensor->publish_state(static_cast<float>(atoi(value.c_str())));
           break;
         case MiiotProperty::Temperature:
-          this->state_.temperature = static_cast<float>(atoi(value.c_str()));
-          this->temperature_sensor->publish_state(this->state_.temperature);
+          this->temperature_sensor->publish_state(static_cast<float>(atoi(value.c_str())));
           break;
         case MiiotProperty::FilterLifeRemaining:
-          this->state_.filter_life_remaining = static_cast<int>(atoi(value.c_str()));
-          this->filterlife_remaining_sensor->publish_state(this->state_.filter_life_remaining);
+          this->filterlife_remaining_sensor->publish_state(static_cast<int>(atoi(value.c_str())));
           break;
         case MiiotProperty::FilterHoursUsed:
-          this->state_.filter_hours_used = static_cast<int>(atoi(value.c_str()));
-          this->filterhours_used_sensor->publish_state(this->state_.filter_hours_used);
+          this->filterhours_used_sensor->publish_state(static_cast<int>(atoi(value.c_str())));
           break;
         case MiiotProperty::Buzzer:
-          this->state_.buzzer = str_to_bool(value);
-          this->buzzer_sensor->publish_state(this->state_.buzzer);
+          this->buzzer_sensor->publish_state(str_to_bool(value));
           break;
         case MiiotProperty::BuzzerVolume:
-          this->state_.buzzer_volume = static_cast<int>(atoi(value.c_str()));
-          this->buzzer_volume_sensor->publish_state(this->state_.buzzer_volume);
+          this->buzzer_volume_sensor->publish_state(static_cast<int>(atoi(value.c_str())));
           break;
         case MiiotProperty::LedBrightness:
-          this->state_.led_brightness = static_cast<LedBrightnessValue>(atoi(value.c_str()));
-          this->led_brightness_sensor->publish_state(this->state_.led_brightness);
+          this->led_brightness_sensor->publish_state(static_cast<LedBrightnessValue>(atoi(value.c_str())));
           break;
         case MiiotProperty::Led:
-          this->state_.led = str_to_bool(value);
-          this->led_sensor->publish_state(this->state_.led);
+          this->led_sensor->publish_state(str_to_bool(value));
           break;
         case MiiotProperty::ChildLock:
-          this->state_.child_lock = str_to_bool(value);
-          this->child_lock_sensor->publish_state(this->state_.child_lock);
+          this->child_lock_sensor->publish_state(str_to_bool(value));
           break;
         case MiiotProperty::FavoriteLevel:
-          this->state_.favorite_level = static_cast<int>(atoi(value.c_str()));
-          this->favorite_level_sensor->publish_state(this->state_.favorite_level);
+          this->favorite_level_sensor->publish_state(static_cast<int>(atoi(value.c_str())));
           break;
         case MiiotProperty::FavoriteRpm:
-          this->state_.favorite_rpm = static_cast<int>(atoi(value.c_str()));
-          this->favorite_rpm_sensor->publish_state(this->state_.favorite_rpm);
+          this->favorite_rpm_sensor->publish_state(static_cast<int>(atoi(value.c_str())));
           break;
         case MiiotProperty::MotorSpeed:
-          this->state_.motor_speed = static_cast<int>(atoi(value.c_str()));
-          this->motor_speed_sensor->publish_state(this->state_.motor_speed);
+          this->motor_speed_sensor->publish_state(static_cast<int>(atoi(value.c_str())));
           break;
         case MiiotProperty::UseTime:
-          this->state_.use_time = static_cast<int>(atoi(value.c_str()));
-          this->use_time_sensor->publish_state(this->state_.use_time);
+          this->use_time_sensor->publish_state(static_cast<int>(atoi(value.c_str())));
           break;
         case MiiotProperty::PurifyVolume:
-          this->state_.purify_volume = static_cast<int>(atoi(value.c_str()));
-          this->purify_volume_sensor->publish_state(this->state_.purify_volume);
+          this->purify_volume_sensor->publish_state(static_cast<int>(atoi(value.c_str())));
           break;
         case MiiotProperty::AverageAQI:
-          this->state_.average_aqi = static_cast<int>(atoi(value.c_str()));
-          this->average_aqi_sensor->publish_state(this->state_.average_aqi);
+          this->average_aqi_sensor->publish_state(static_cast<int>(atoi(value.c_str())));
           break;
         case MiiotProperty::FilterRFIDTag:
-          this->state_.filter_rfid_tag = value.c_str();
-          this->filter_rfid_tag_sensor->publish_state(this->state_.filter_rfid_tag);
+          this->filter_rfid_tag_sensor->publish_state(value.c_str());
           break;
         case MiiotProperty::FilterRFIDProductId:
-          this->state_.filter_rfid_product_id = value.c_str();
-          this->filter_rfid_product_id_sensor->publish_state(this->state_.filter_rfid_product_id);
+          this->filter_rfid_product_id_sensor->publish_state(value.c_str());
           break;
         case MiiotProperty::AppExtra:
-          this->state_.app_extra = value.c_str();
-          this->app_extra_sensor->publish_state(this->state_.app_extra);
+          this->app_extra_sensor->publish_state(value.c_str());
           break;
         default:
           ESP_LOGD(TAG, "Unhandled property change SIID: %i, PIID: %i, Value=%s", siid, piid, value.c_str());
@@ -426,18 +392,15 @@ class XiaomiAirPurifier : public MiiotUart  {
             return "ok";
         case MiiotCommand::MODEL:
             ESP_LOGD(TAG, "Got model: %s", args_to_str(args).c_str());
-            this->state_.model = args[0];
-            this->model_name->publish_state(this->state_.model);
+            this->model_name->publish_state(args[0]);
             return "ok";
         case MiiotCommand::BLE_CONFIG:
             ESP_LOGD(TAG, "BLE config: %s", args_to_str(args).c_str());
-            this->state_.ble = args_to_str(args);
-            this->ble_config->publish_state(this->state_.ble);
+            this->ble_config->publish_state(args_to_str(args));
             return "ok";
         case MiiotCommand::MCU_VERSION:
             ESP_LOGD(TAG, "MCU Version: %s", args_to_str(args).c_str());
-            this->state_.mcu_version = args_to_str(args);
-            this->mcu_firmware->publish_state(this->state_.mcu_version);
+            this->mcu_firmware->publish_state(args_to_str(args));
             return "ok";
         case MiiotCommand::TIME:
             ESP_LOGD(TAG, "Time request: %s", args_to_str(args).c_str());
@@ -461,7 +424,6 @@ class XiaomiAirPurifier : public MiiotUart  {
 
   protected:
     const char* TAG = "xiaomi_air_purifier";
-    State state_{};
     std::vector<std::string> down_queue_{};
     bool initial_stats_requested_{false};
 

@@ -62,7 +62,8 @@ text_sensor:
       cc->ble_config,
       cc->filter_rfid_tag_sensor,
       cc->filter_rfid_product_id_sensor,
-      cc->app_extra_sensor
+      cc->app_extra_sensor,
+      cc->network_status
     };
 
   text_sensors:
@@ -72,6 +73,7 @@ text_sensor:
   - name: Filter RFID Tag
   - name: Filter RFID Product Id
   - name: App Extra
+  - name: Network status
 
 sensor:
 - platform: custom
@@ -142,3 +144,45 @@ switch:
     - lambda: |-
         auto cc = static_cast<XiaomiAirPurifier*>(id(ap_custom));
         cc->set_power(false);
+
+fan:
+- platform: speed
+  output: fanspeed_output
+  name: "Fanspeed control"
+  speed_count: 3
+
+light:
+- platform: binary
+  name: "LED"
+  output: led_output
+
+output:
+- platform: template
+  id: fanspeed_output
+  type: float
+  write_action:
+   - lambda: |-
+        auto cc = static_cast<XiaomiAirPurifier*>(id(ap_custom));
+        int level = 0;
+        if (state == 0.00) {
+          level = 0;
+        } else if (state == 0.33) {
+          level = 1;
+        } else if (state == 0.66) {
+          level = 2;
+        } else if (state == 1.00) {
+          level = 3;
+        } else {
+          return;
+        }
+        cc->set_fan_level(level);
+- platform: template
+  id: led_output
+  type: binary
+  write_action:
+  - lambda: |-
+      auto cc = static_cast<XiaomiAirPurifier*>(id(ap_custom));
+      if (state)
+        cc->set_led_brightness(LedBrightnessValue::Bright);
+      else
+        cc->set_led_brightness(LedBrightnessValue::Off);
